@@ -47,11 +47,7 @@ if run_button and query:
 
         # Select LLM
         if llm_choice == "Gemini 2.5":
-            llm = ChatGoogleGenerativeAI(
-                model="models/gemini-2.5-flash-lite",
-                google_api_key=st.secrets["GOOGLE_API_KEY"],
-                stream=False
-            )
+            llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", google_api_key=st.secrets["GOOGLE_API_KEY"])
         elif llm_choice == "Claude 3.5":
             llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
         else:
@@ -63,7 +59,7 @@ if run_button and query:
             ("system", """
 You are an AI research assistant.
 Use the tools provided to deeply explore the user's query.
-Return the output strictly as structured JSON like this. If tool responses contain URLs or links, include them in the 'sources' list:
+Return the output strictly as structured JSON like this:
 
 ```json
 {{
