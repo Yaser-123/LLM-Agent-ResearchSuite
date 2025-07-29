@@ -48,7 +48,7 @@ if run_button and query:
         # Select LLM
         if llm_choice == "Gemini 2.5":
             llm = ChatGoogleGenerativeAI(
-                model="models/gemini-1.5-flash",
+                model="models/gemini-2.5-flash",
                 google_api_key=st.secrets["GOOGLE_API_KEY"],
                 stream=False
             )
