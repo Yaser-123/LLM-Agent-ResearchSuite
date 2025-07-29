@@ -33,6 +33,7 @@ tools = {
 
 # --- Streamlit UI ---
 st.title("📚 AI Research Assistant")
+st.write("GOOGLE_API_KEY:", st.secrets.get("GOOGLE_API_KEY", "Not set!"))
 st.markdown("""
 Welcome to the AI-powered research assistant! Choose your tools, ask a question, and get a structured summary.
 """)
