@@ -59,7 +59,7 @@ if run_button and query:
             except Exception as e:
                 st.warning(f"Gemini 2.5 unavailable ({str(e)}), falling back to 1.5 Pro")
                 llm = ChatGoogleGenerativeAI(
-                    model="models/gemini-1.5-pro-latest",
+                    model="models/gemini-1.5-flash",
                     google_api_key=st.secrets["GOOGLE_API_KEY"],
                     stream=False
                 )
