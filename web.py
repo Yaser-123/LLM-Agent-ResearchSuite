@@ -63,7 +63,7 @@ if run_button and query:
             ("system", """
 You are an AI research assistant.
 Use the tools provided to deeply explore the user's query.
-Return the output strictly as structured JSON like this:
+Return the output strictly as structured JSON like this. If tool responses contain URLs or links, include them in the 'sources' list:
 
 ```json
 {{
