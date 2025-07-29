@@ -47,7 +47,11 @@ if run_button and query:
 
         # Select LLM
         if llm_choice == "Gemini 2.5":
-            llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", google_api_key=st.secrets["GOOGLE_API_KEY"])
+            llm = ChatGoogleGenerativeAI(
+                model="models/gemini-2.5-flash",
+                google_api_key=st.secrets["GOOGLE_API_KEY"],
+                stream=False
+            )
         elif llm_choice == "Claude 3.5":
             llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
         else:
