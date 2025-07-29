@@ -33,7 +33,6 @@ tools = {
 
 # --- Streamlit UI ---
 st.title("📚 AI Research Assistant")
-st.write("GOOGLE_API_KEY:", st.secrets.get("GOOGLE_API_KEY", "Not set!"))
 st.markdown("""
 Welcome to the AI-powered research assistant! Choose your tools, ask a question, and get a structured summary.
 """)
@@ -49,7 +48,7 @@ if run_button and query:
         # Select LLM
         if llm_choice == "Gemini 2.5":
             llm = ChatGoogleGenerativeAI(
-                model="models/gemini-2.5-flash-lite",
+                model="models/gemini-2.5-flash",
                 google_api_key=st.secrets["GOOGLE_API_KEY"],
                 stream=False
             )
