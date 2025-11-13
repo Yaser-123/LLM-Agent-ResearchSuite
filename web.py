@@ -53,54 +53,77 @@ if run_button and query:
         parser = PydanticOutputParser(pydantic_object=ResearchResponse)
 
         selected_tool_instances = [tools[t] for t in selected_tools if t != "Save to File"]
+        
+        st.write(f"🛠️ Tools available: {[t.name for t in selected_tool_instances]}")
+        
+        # Test tools directly
+        st.write("Testing Wikipedia tool...")
+        try:
+            wiki_result = wiki_tool.func("Batman")
+            st.success(f"✅ Wiki works: {wiki_result[:100]}...")
+        except Exception as e:
+            st.error(f"❌ Wiki failed: {e}")
 
-        # System message for the agent
-        system_message = """You are an AI research assistant. Use the available tools to research the user's query thoroughly.
+        # Create agent using langgraph with higher recursion limit
+        agent_executor = create_react_agent(llm, selected_tool_instances)
+        
+        # Configure with recursion limit
+        config = {"recursion_limit": 10}
 
-After gathering ALL information from tools, you MUST respond with ONLY valid JSON in this exact format (no other text before or after):
+        # Direct approach: Call tools then LLM
+        st.write("🔄 Gathering research...")
+        
+        # Step 1: Extract main topic from query for better Wikipedia search
+        # If query asks for "facts about X", search for "X" directly
+        search_query = query
+        if "facts about" in query.lower() or "information about" in query.lower():
+            # Extract the subject (e.g., "Batman" from "5 unknown facts about Batman")
+            import re
+            match = re.search(r'about\s+(.+?)(?:\s+in\s+short)?$', query, re.IGNORECASE)
+            if match:
+                search_query = match.group(1).strip()
+        
+        st.write(f"🔍 Searching Wikipedia for: {search_query}")
+        wiki_info = wiki_tool.func(search_query)
+        st.write(f"📚 Wikipedia result: {wiki_info[:200]}...")
+        
+        # Step 2: Ask LLM to format as JSON
+        final_prompt = f"""You are a research assistant. Based on the Wikipedia information below, answer the user's query: "{query}"
 
-{
-  "topic": "Main Topic Title",
-  "exploration": "Detailed research findings in 2-3 paragraphs based on tool results",
-  "summary": [
-    "key point 1",
-    "key point 2",
-    "key point 3"
-  ],
-  "sources": [
-    "URL 1",
-    "URL 2"
-  ],
-  "tools_used": ["tool1", "tool2"]
-}
+Wikipedia Information:
+{wiki_info}
 
-IMPORTANT: Return ONLY the JSON object, nothing else."""
+Your task:
+1. Extract or infer interesting facts/information that answer the query
+2. Create a detailed exploration (2-3 paragraphs)
+3. Provide 5 key summary points
 
-        # Create agent using langgraph with system message
-        agent_executor = create_react_agent(
-            llm, 
-            selected_tool_instances,
-            prompt=system_message
-        )
+Format your response as JSON:
+{{
+  "topic": "{query}",
+  "exploration": "Write 2-3 detailed paragraphs explaining what you found",
+  "summary": ["fact 1", "fact 2", "fact 3", "fact 4", "fact 5"],
+  "sources": ["Wikipedia"],
+  "tools_used": ["wikipedia_lookup"]
+}}
 
-        result = agent_executor.invoke({"messages": [("user", query)]})
+Important: Use the Wikipedia info to CREATE the facts/points. Don't say "not found" - extract interesting information from what's provided.
+Return ONLY valid JSON, no other text."""
+
+        llm_response = llm.invoke(final_prompt)
+        output_text = llm_response.content
+        
+        st.write("🤖 LLM Response received")
 
         try:
-            # Extract output from LangGraph response
-            last_message = result["messages"][-1]
-            output_content = last_message.content
-            
-            # Handle both string and list formats
-            if isinstance(output_content, list):
-                output_text = output_content[0].get('text', '') if output_content else ""
-            else:
-                output_text = output_content
-            
-            # Remove markdown code blocks if present (Gemini often wraps JSON in ```json ... ```)
+            # Remove markdown code blocks if present
             import re
             json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', output_text, re.DOTALL)
             if json_match:
                 output_text = json_match.group(1)
+            
+            # Replace smart quotes with regular quotes
+            output_text = output_text.replace('"', '"').replace('"', '"').replace("'", "'").replace("'", "'")
             
             parsed = parser.parse(output_text)
 
@@ -155,10 +178,6 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
         except Exception as e:
             st.error(f"❌ Failed to parse structured response: {e}")
             st.markdown("**Debug Info:**")
-            if isinstance(result, dict) and "messages" in result:
-                last_msg = result["messages"][-1]
-                st.markdown("**Raw Last Message Content:**")
-                st.code(last_msg.content if last_msg.content else "[EMPTY]", language="text")
-                st.markdown("**After extraction (output_text):**")
-                st.code(output_text if 'output_text' in locals() and output_text else "[EMPTY or undefined]", language="text")
-            st.info("💡 The agent may not be returning proper JSON. The tools may have failed or the agent didn't follow instructions.")
+            st.markdown("**Raw LLM Response:**")
+            st.code(output_text if output_text else "[EMPTY]", language="text")
+            st.info("💡 The LLM may not be returning proper JSON. Try rephrasing your query.")

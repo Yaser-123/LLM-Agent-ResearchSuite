@@ -39,7 +39,7 @@ search_tool = Tool(
 )
 
 # ========== Tool: Wikipedia Search ==========
-api_wrapper = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=100)
+api_wrapper = WikipediaAPIWrapper(top_k_results=1, doc_content_chars_max=5000)
 
 wiki_tool = Tool(
     name="wikipedia_lookup",
