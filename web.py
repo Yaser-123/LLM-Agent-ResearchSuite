@@ -47,7 +47,26 @@ if run_button and query:
 
         # Select LLM
         if llm_choice == "Gemini 2.5":
+<<<<<<< HEAD
             llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
+=======
+            try:
+                # Test if 2.5 is available
+                test_llm = ChatGoogleGenerativeAI(
+                    model="models/gemini-2.5-flash",
+                    google_api_key=st.secrets["GOOGLE_API_KEY"],
+                    stream=False
+                )
+                test_llm.invoke("Hello")  # Simple test call
+                llm = test_llm
+            except Exception as e:
+                st.warning(f"Gemini 2.5 unavailable ({str(e)}), falling back to 1.5 Pro")
+                llm = ChatGoogleGenerativeAI(
+                    model="models/gemini-1.5-flash",
+                    google_api_key=st.secrets["GOOGLE_API_KEY"],
+                    stream=False
+                )
+>>>>>>> e78da8c36d05bd30c9956d91e021f8a16a8b35b3
         elif llm_choice == "Claude 3.5":
             llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
         else:
