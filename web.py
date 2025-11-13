@@ -10,9 +10,6 @@ from pydantic import BaseModel
 from tools import wiki_tool, search_tool, save_tool
 from langgraph.prebuilt import create_react_agent
 from datetime import datetime
-from io import BytesIO
-from xhtml2pdf import pisa
-import markdown2
 
 load_dotenv()
 
@@ -147,13 +144,13 @@ IMPORTANT: Return ONLY the JSON object, nothing else."""
 **Tools Used:** {', '.join(parsed.tools_used)}
 """
 
-            # Convert to PDF
-            html = markdown2.markdown(md_content)
-            pdf = BytesIO()
-            pisa.CreatePDF(html, dest=pdf)
-            pdf.seek(0)
-
-            st.download_button("📄 Download as PDF", pdf, file_name=f"research_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf")
+            # Download as text file (Streamlit Cloud compatible)
+            st.download_button(
+                "📄 Download as Text File",
+                md_content,
+                file_name=f"research_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+                mime="text/plain"
+            )
 
         except Exception as e:
             st.error(f"❌ Failed to parse structured response: {e}")
