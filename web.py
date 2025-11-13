@@ -10,6 +10,9 @@ from pydantic import BaseModel
 from tools import wiki_tool, search_tool, save_tool
 from langgraph.prebuilt import create_react_agent
 from datetime import datetime
+from io import BytesIO
+from xhtml2pdf import pisa
+import markdown2
 
 load_dotenv()
 
@@ -43,62 +46,65 @@ if run_button and query:
     with st.spinner("Running research agent..."):
 
         # Select LLM
-        # Support both local .env and Streamlit Cloud secrets
-        def get_api_key(key_name):
-            try:
-                return st.secrets[key_name]
-            except:
-                return os.getenv(key_name)
-        
         if llm_choice == "Gemini 2.5":
-            llm = ChatGoogleGenerativeAI(
-                model="models/gemini-2.5-flash", 
-                google_api_key=get_api_key("GOOGLE_API_KEY")
-            )
+            llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
         elif llm_choice == "Claude 3.5":
-            llm = ChatAnthropic(
-                model="claude-3-5-sonnet-20241022",
-                api_key=get_api_key("ANTHROPIC_API_KEY")
-            )
+            llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
         else:
-            llm = ChatOpenAI(
-                model="gpt-4",
-                api_key=get_api_key("OPENAI_API_KEY")
-            )
+            llm = ChatOpenAI(model="gpt-4")
 
         parser = PydanticOutputParser(pydantic_object=ResearchResponse)
 
         selected_tool_instances = [tools[t] for t in selected_tools if t != "Save to File"]
 
-        # Create system message for the agent
+        # System message for the agent
         system_message = """You are an AI research assistant. Use the available tools to research the user's query thoroughly.
 
-After gathering information, you MUST respond with ONLY valid JSON in this exact format (no other text):
+After gathering ALL information from tools, you MUST respond with ONLY valid JSON in this exact format (no other text before or after):
 
-{{
-  "topic": "<Main Topic Title>",
-  "exploration": "<Detailed research findings in 2-3 paragraphs>",
+{
+  "topic": "Main Topic Title",
+  "exploration": "Detailed research findings in 2-3 paragraphs based on tool results",
   "summary": [
-    "<key point 1>",
-    "<key point 2>",
-    "<key point 3>"
+    "key point 1",
+    "key point 2",
+    "key point 3"
   ],
   "sources": [
-    "<URL 1>",
-    "<URL 2>"
+    "URL 1",
+    "URL 2"
   ],
-  "tools_used": ["<tool1>", "<tool2>"]
-}}
+  "tools_used": ["tool1", "tool2"]
+}
 
-If tools don't provide enough info, use your knowledge but still format as JSON."""
+IMPORTANT: Return ONLY the JSON object, nothing else."""
 
-        agent_executor = create_react_agent(llm, selected_tool_instances, prompt=system_message)
+        # Create agent using langgraph with system message
+        agent_executor = create_react_agent(
+            llm, 
+            selected_tool_instances,
+            prompt=system_message
+        )
 
         result = agent_executor.invoke({"messages": [("user", query)]})
 
         try:
-            # Extract the last message content from langgraph response
-            output_text = result["messages"][-1].content
+            # Extract output from LangGraph response
+            last_message = result["messages"][-1]
+            output_content = last_message.content
+            
+            # Handle both string and list formats
+            if isinstance(output_content, list):
+                output_text = output_content[0].get('text', '') if output_content else ""
+            else:
+                output_text = output_content
+            
+            # Remove markdown code blocks if present (Gemini often wraps JSON in ```json ... ```)
+            import re
+            json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', output_text, re.DOTALL)
+            if json_match:
+                output_text = json_match.group(1)
+            
             parsed = parser.parse(output_text)
 
             # --- Display on screen ---
@@ -123,9 +129,8 @@ If tools don't provide enough info, use your knowledge but still format as JSON.
                 save_tool.func(parsed.exploration)
                 st.success("Research exploration saved to file!")
 
-            # --- Download as Markdown ---
-            md_content = f"""# Research Report
-
+            # --- Markdown for PDF ---
+            md_content = f"""
 **Topic:** {parsed.topic}
 
 **Research Exploration:**
@@ -140,20 +145,23 @@ If tools don't provide enough info, use your knowledge but still format as JSON.
 {chr(10).join([f"- {src}" for src in parsed.sources])}
 
 **Tools Used:** {', '.join(parsed.tools_used)}
-
----
-*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}*
 """
 
-            st.download_button(
-                label="📄 Download as Markdown", 
-                data=md_content, 
-                file_name=f"research_{datetime.now().strftime('%Y%m%d_%H%M')}.md",
-                mime="text/markdown"
-            )
+            # Convert to PDF
+            html = markdown2.markdown(md_content)
+            pdf = BytesIO()
+            pisa.CreatePDF(html, dest=pdf)
+            pdf.seek(0)
+
+            st.download_button("📄 Download as PDF", pdf, file_name=f"research_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf")
 
         except Exception as e:
             st.error(f"❌ Failed to parse structured response: {e}")
-            st.markdown("**Raw Output:**")
-            st.code(output_text if 'output_text' in locals() else str(result), language="text")
-            st.info("💡 Tip: The AI might not have returned JSON format. Try rephrasing your question or selecting different tools.")
+            st.markdown("**Debug Info:**")
+            if isinstance(result, dict) and "messages" in result:
+                last_msg = result["messages"][-1]
+                st.markdown("**Raw Last Message Content:**")
+                st.code(last_msg.content if last_msg.content else "[EMPTY]", language="text")
+                st.markdown("**After extraction (output_text):**")
+                st.code(output_text if 'output_text' in locals() and output_text else "[EMPTY or undefined]", language="text")
+            st.info("💡 The agent may not be returning proper JSON. The tools may have failed or the agent didn't follow instructions.")
