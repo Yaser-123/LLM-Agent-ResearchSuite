@@ -148,13 +148,25 @@ git clone https://github.com/Yaser-123/LLM-Agent-ResearchSuite.git
 cd LLM-Agent-ResearchSuite
 ```
 
-2. Install dependencies
+2. **Create and activate virtual environment** (Important!)
+
+```bash
+# Windows
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Add your `.env` file with your keys:
+4. Add your `.env` file with your keys:
 
 ```env
 GOOGLE_API_KEY=your_key
@@ -162,11 +174,56 @@ OPENAI_API_KEY=your_key
 ANTHROPIC_API_KEY=your_key
 ```
 
-4. Run the app
+5. Run the app
 
 ```bash
 streamlit run web.py
 ```
+
+---
+
+## 🌐 Deploying to Streamlit Cloud
+
+### Prerequisites
+- GitHub repository with your code
+- API keys for at least one LLM provider
+
+### Steps
+
+1. **Push your code to GitHub** (make sure `.env` is in `.gitignore`)
+
+2. **Go to [Streamlit Cloud](https://share.streamlit.io/)**
+
+3. **Deploy your app:**
+   - Select your repository
+   - Set main file as `web.py`
+   - Set Python version to **3.12**
+
+4. **Add Secrets:**
+   - Go to App Settings → Secrets
+   - Add your API keys in TOML format:
+   
+   ```toml
+   GOOGLE_API_KEY = "your_google_api_key"
+   ANTHROPIC_API_KEY = "your_anthropic_api_key"
+   OPENAI_API_KEY = "your_openai_api_key"
+   ```
+
+5. **Save and Deploy** - Your app will be live in a few minutes!
+
+### Common Deployment Issues
+
+**Issue: Package installation errors**
+- Solution: Make sure all dependencies have version numbers in `requirements.txt`
+- The file should include: `langchain>=1.0.5`, `langgraph>=1.0.3`, etc.
+
+**Issue: Module not found errors**
+- Solution: Verify `langgraph` is in your `requirements.txt`
+- Add `langchain-community>=0.3.0` if missing
+
+**Issue: API key errors**
+- Solution: Double-check your Secrets configuration in Streamlit Cloud
+- Change `os.getenv()` to `st.secrets[]` for cloud deployment
 
 ---
 

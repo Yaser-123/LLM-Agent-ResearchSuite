@@ -10,9 +10,6 @@ from pydantic import BaseModel
 from tools import wiki_tool, search_tool, save_tool
 from langgraph.prebuilt import create_react_agent
 from datetime import datetime
-from io import BytesIO
-from xhtml2pdf import pisa
-import markdown2
 
 load_dotenv()
 
@@ -46,12 +43,28 @@ if run_button and query:
     with st.spinner("Running research agent..."):
 
         # Select LLM
+        # Support both local .env and Streamlit Cloud secrets
+        def get_api_key(key_name):
+            try:
+                return st.secrets[key_name]
+            except:
+                return os.getenv(key_name)
+        
         if llm_choice == "Gemini 2.5":
-            llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
+            llm = ChatGoogleGenerativeAI(
+                model="models/gemini-2.5-flash", 
+                google_api_key=get_api_key("GOOGLE_API_KEY")
+            )
         elif llm_choice == "Claude 3.5":
-            llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
+            llm = ChatAnthropic(
+                model="claude-3-5-sonnet-20241022",
+                api_key=get_api_key("ANTHROPIC_API_KEY")
+            )
         else:
-            llm = ChatOpenAI(model="gpt-4")
+            llm = ChatOpenAI(
+                model="gpt-4",
+                api_key=get_api_key("OPENAI_API_KEY")
+            )
 
         parser = PydanticOutputParser(pydantic_object=ResearchResponse)
 
@@ -110,8 +123,9 @@ If tools don't provide enough info, use your knowledge but still format as JSON.
                 save_tool.func(parsed.exploration)
                 st.success("Research exploration saved to file!")
 
-            # --- Markdown for PDF ---
-            md_content = f"""
+            # --- Download as Markdown ---
+            md_content = f"""# Research Report
+
 **Topic:** {parsed.topic}
 
 **Research Exploration:**
@@ -126,15 +140,17 @@ If tools don't provide enough info, use your knowledge but still format as JSON.
 {chr(10).join([f"- {src}" for src in parsed.sources])}
 
 **Tools Used:** {', '.join(parsed.tools_used)}
+
+---
+*Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}*
 """
 
-            # Convert to PDF
-            html = markdown2.markdown(md_content)
-            pdf = BytesIO()
-            pisa.CreatePDF(html, dest=pdf)
-            pdf.seek(0)
-
-            st.download_button("📄 Download as PDF", pdf, file_name=f"research_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf")
+            st.download_button(
+                label="📄 Download as Markdown", 
+                data=md_content, 
+                file_name=f"research_{datetime.now().strftime('%Y%m%d_%H%M')}.md",
+                mime="text/markdown"
+            )
 
         except Exception as e:
             st.error(f"❌ Failed to parse structured response: {e}")
