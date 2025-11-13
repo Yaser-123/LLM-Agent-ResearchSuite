@@ -8,7 +8,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 from tools import wiki_tool, search_tool, save_tool
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langgraph.prebuilt import create_react_agent
 from datetime import datetime
 from io import BytesIO
 from xhtml2pdf import pisa
@@ -47,7 +47,7 @@ if run_button and query:
 
         # Select LLM
         if llm_choice == "Gemini 2.5":
-            llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
+            llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
         elif llm_choice == "Claude 3.5":
             llm = ChatAnthropic(model="claude-3-5-sonnet-20241022")
         else:
@@ -55,43 +55,38 @@ if run_button and query:
 
         parser = PydanticOutputParser(pydantic_object=ResearchResponse)
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """
-You are an AI research assistant.
-Use the tools provided to deeply explore the user's query.
-Return the output strictly as structured JSON like this:
-
-```json
-{{
-  "topic": "<Main Topic Title>",
-  "exploration": "<Detailed research findings in paragraph>",
-  "summary": [
-    "<point 1>",
-    "<point 2>",
-    "..."
-  ],
-  "sources": [
-    "<full clickable URL>",
-    "<full clickable URL>"
-  ],
-  "tools_used": ["tool1", "tool2"]
-}}
-```
-
-{agent_scratchpad}
-"""),
-            ("human", "{query}"),
-        ]).partial(query=query)
-
         selected_tool_instances = [tools[t] for t in selected_tools if t != "Save to File"]
 
-        agent = create_tool_calling_agent(llm=llm, prompt=prompt, tools=selected_tool_instances)
-        agent_executor = AgentExecutor(agent=agent, tools=selected_tool_instances, verbose=True)
+        # Create system message for the agent
+        system_message = """You are an AI research assistant. Use the available tools to research the user's query thoroughly.
 
-        result = agent_executor.invoke({"query": query})
+After gathering information, you MUST respond with ONLY valid JSON in this exact format (no other text):
+
+{{
+  "topic": "<Main Topic Title>",
+  "exploration": "<Detailed research findings in 2-3 paragraphs>",
+  "summary": [
+    "<key point 1>",
+    "<key point 2>",
+    "<key point 3>"
+  ],
+  "sources": [
+    "<URL 1>",
+    "<URL 2>"
+  ],
+  "tools_used": ["<tool1>", "<tool2>"]
+}}
+
+If tools don't provide enough info, use your knowledge but still format as JSON."""
+
+        agent_executor = create_react_agent(llm, selected_tool_instances, prompt=system_message)
+
+        result = agent_executor.invoke({"messages": [("user", query)]})
 
         try:
-            parsed = parser.parse(result["output"])
+            # Extract the last message content from langgraph response
+            output_text = result["messages"][-1].content
+            parsed = parser.parse(output_text)
 
             # --- Display on screen ---
             st.markdown("### ✅ Research Result")
@@ -143,3 +138,6 @@ Return the output strictly as structured JSON like this:
 
         except Exception as e:
             st.error(f"❌ Failed to parse structured response: {e}")
+            st.markdown("**Raw Output:**")
+            st.code(output_text if 'output_text' in locals() else str(result), language="text")
+            st.info("💡 Tip: The AI might not have returned JSON format. Try rephrasing your question or selecting different tools.")
